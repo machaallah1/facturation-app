@@ -19,6 +19,9 @@
 
 # production
 /build
+/firebase-debug.log
+/.firebase/
+src/lib/firebase.ts
 
 # misc
 .DS_Store
