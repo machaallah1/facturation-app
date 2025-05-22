@@ -19,7 +19,6 @@
 
 # production
 /build
-/firebase-debug.log
 /.firebase/
 src/lib/firebase.ts
 
