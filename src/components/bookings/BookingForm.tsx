@@ -1,3 +1,4 @@
+// BookingForm.tsx
 import { Form, Input, InputNumber, Select, Modal, Button, Space, message } from 'antd';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -7,7 +8,8 @@ import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 type Booking = {
     id?: string;
     numero: string;
-    typeCamion: '20pieds' | '40pieds';
+    typeProduit: 'semi_fini' | 'matiere_premiere';
+    typeContenaire: '20pieds' | '40pieds';
     nombreTC: number;
     fraisTransport: number;
     fauxFrais: number;
@@ -30,13 +32,15 @@ export default function BookingForm({
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [messageApi, contextHolder] = message.useMessage();
+    const [typeProduit, setTypeProduit] = useState<string>('');
 
-    // Initialiser le formulaire si on est en mode édition
     useEffect(() => {
         if (bookingData) {
             form.setFieldsValue(bookingData);
+            setTypeProduit(bookingData.typeProduit);
         } else {
             form.resetFields();
+            setTypeProduit('');
         }
     }, [bookingData, form]);
 
@@ -65,7 +69,7 @@ export default function BookingForm({
         } finally {
             setLoading(false);
         }
-  };
+    };
 
     const handleDelete = async () => {
         if (!bookingData?.id) return;
@@ -90,6 +94,18 @@ export default function BookingForm({
         });
     };
 
+    const handleTypeProduitChange = (value: string) => {
+        setTypeProduit(value);
+        // Reset manutention fields when product type changes
+        form.setFieldsValue({
+            manutention: {
+                dfu: 0,
+                honoraire: 0,
+                caution: 0
+            }
+        });
+    };
+
     return (
         <>
             {contextHolder}
@@ -103,8 +119,22 @@ export default function BookingForm({
                 </Form.Item>
 
                 <Form.Item
-                    name="typeCamion"
-                    label="Type de camion"
+                    name="typeProduit"
+                    label="Type de produit"
+                    rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+                >
+                    <Select
+                        placeholder="Sélectionnez un type de produit"
+                        onChange={handleTypeProduitChange}
+                    >
+                        <Select.Option value="semi_fini">Semi-fini</Select.Option>
+                        <Select.Option value="matiere_premiere">Matière première</Select.Option>
+                    </Select>
+                </Form.Item>
+
+                <Form.Item
+                    name="typeContenaire"
+                    label="Type de contenaire"
                     rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
                 >
                     <Select placeholder="Sélectionnez un type">
@@ -129,7 +159,7 @@ export default function BookingForm({
                 <Space direction="horizontal" size={12} style={{ width: '100%' }}>
                     <Form.Item
                         name="fraisTransport"
-                        label="Frais Transport (€)"
+                        label="Frais Transport (fcfa)"
                         rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
                         style={{ width: '100%' }}
                     >
@@ -138,7 +168,7 @@ export default function BookingForm({
 
                     <Form.Item
                         name="fauxFrais"
-                        label="Faux Frais (€)"
+                        label="Faux Frais (fcfa)"
                         rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
                         style={{ width: '100%' }}
                     >
@@ -146,7 +176,7 @@ export default function BookingForm({
                     </Form.Item>
                 </Space>
 
-                <Form.Item label="Manutention (€)">
+                <Form.Item label="Manutention (fcfa)">
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
                         <Form.Item
                             name={['manutention', 'facture']}
@@ -156,29 +186,33 @@ export default function BookingForm({
                             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
                         </Form.Item>
 
-                        <Form.Item
-                            name={['manutention', 'dfu']}
-                            label="DFU"
-                            rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
-                        >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                        </Form.Item>
+                        {['soja', 'anacarde', 'cesame'].includes(typeProduit) && (
+                            <>
+                                <Form.Item
+                                    name={['manutention', 'dfu']}
+                                    label="DFU"
+                                    rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+                                >
+                                    <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                                </Form.Item>
 
-                        <Form.Item
-                            name={['manutention', 'honoraire']}
-                            label="Honoraire"
-                            rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
-                        >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                        </Form.Item>
+                                <Form.Item
+                                    name={['manutention', 'honoraire']}
+                                    label="Honoraire"
+                                    rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+                                >
+                                    <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                                </Form.Item>
 
-                        <Form.Item
-                            name={['manutention', 'caution']}
-                            label="Caution"
-                            rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
-                        >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                        </Form.Item>
+                                <Form.Item
+                                    name={['manutention', 'caution']}
+                                    label="Caution"
+                                    rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+                                >
+                                    <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                                </Form.Item>
+                            </>
+                        )}
                     </Space>
                 </Form.Item>
 

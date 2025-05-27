@@ -30,10 +30,10 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
             onClick: () => router.push('/dashboard/clients'),
         },
         {
-            key: '/dashboard/invoices',
+            key: '/dashboard/factures',
             icon: <FileTextOutlined />,
             label: 'Factures',
-            onClick: () => router.push('/dashboard'),
+            onClick: () => router.push('/dashboard/factures'),
         },
         {
             key: '/dashboard/booking',
