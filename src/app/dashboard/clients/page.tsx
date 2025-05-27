@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
+import { db } from '@/app/lib/firebase'
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import { Button, Form, Input, Modal, Table, Tag, message } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'

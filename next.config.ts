@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-<<<<<<< HEAD
-  /* config options here */
-=======
   output: 'export',
   images: {
     unoptimized: true,
@@ -22,7 +19,6 @@ const nextConfig: NextConfig = {
 
     return config;
   },
->>>>>>> 1324f79 (feat: Add Ant Design integration and refactor login and registration pages)
 };
 
 export default nextConfig;

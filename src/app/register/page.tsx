@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
+import { auth } from '@/app/lib/firebase'
 import { useRouter } from 'next/navigation'
 import { FirebaseError } from 'firebase/app'
 import Link from 'next/link';

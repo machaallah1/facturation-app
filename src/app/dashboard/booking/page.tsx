@@ -6,7 +6,7 @@ import { Table, Input, Button, Select, DatePicker, Modal, Form, Tag, Space, mess
 const { RangePicker } = DatePicker;
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { collection, addDoc, getDocs, where, query, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/app/lib/firebase';
 import BookingForm from '@/components/bookings/BookingForm';
 import { Option } from 'antd/es/mentions';
 const { Panel } = Collapse;
@@ -71,9 +71,9 @@ export default function BookingPage() {
         const fauxFrais = booking.nombreTC * booking.fauxFrais;
 
         let manutention = 0;
-        if ('matiere_premiere'.includes(booking.typeProduit)) {
+        if (['soja', 'anacarde', 'cesame'].includes(booking.typeProduit)) {
             manutention = booking.manutention.facture + booking.manutention.dfu + booking.manutention.honoraire + booking.manutention.caution;
-        } else if ('semi_fini'.includes(booking.typeProduit)) {
+        } else if (['tourteaux_soja', 'huile_soja'].includes(booking.typeProduit)) {
             manutention = booking.manutention.facture;
         }
 
@@ -277,7 +277,7 @@ export default function BookingPage() {
                 footer={null}
                 width="90%"
                 style={{ maxWidth: 800 }}
-                destroyOnClose
+                destroyOnHidden
             >
                 <BookingForm
                     onSuccess={() => {

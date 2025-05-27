@@ -1,6 +1,6 @@
 // BookingForm.tsx
 import { Form, Input, InputNumber, Select, Modal, Button, Space, message } from 'antd';
-import { db } from '@/lib/firebase';
+import { db } from '@/app/lib/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -186,7 +186,7 @@ export default function BookingForm({
                             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
                         </Form.Item>
 
-                        {['soja', 'anacarde', 'cesame'].includes(typeProduit) && (
+                        {'matiere_premiere'.includes(typeProduit) && (
                             <>
                                 <Form.Item
                                     name={['manutention', 'dfu']}

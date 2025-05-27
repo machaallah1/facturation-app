@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, message, Tag, Card } from 'antd';
 import { DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/app/lib/firebase';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
