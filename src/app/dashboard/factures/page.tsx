@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, message, Tag, Card } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, message, Tag, Card, App } from 'antd';
 import { DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase';
@@ -40,10 +40,12 @@ type Article = {
 export default function FacturesPage() {
     const [factures, setFactures] = useState<Facture[]>([]);
     const [loading, setLoading] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
     const [currentFacture, setCurrentFacture] = useState<Facture | null>(null);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
+    const [modal, modalContextHolder] = Modal.useModal();
     const [previewFacture, setPreviewFacture] = useState<Facture | null>(null);
 
     useEffect(() => {
@@ -105,12 +107,15 @@ export default function FacturesPage() {
     };
 
     const handleDelete = async (id: string) => {
-        Modal.confirm({
+        modal.confirm({
             title: 'Confirmer la suppression',
             content: 'Êtes-vous sûr de vouloir supprimer cette facture ?',
             okText: 'Supprimer',
+            okType: 'danger',
             cancelText: 'Annuler',
+            okButtonProps: { loading: deleteLoading },
             async onOk() {
+                setDeleteLoading(true);
                 try {
                     await deleteDoc(doc(db, 'factures', id));
                     messageApi.success('Facture supprimée avec succès');
@@ -118,38 +123,65 @@ export default function FacturesPage() {
                 } catch (error) {
                     messageApi.error('Erreur lors de la suppression');
                     console.error(error);
+                } finally {
+                    setDeleteLoading(false);
                 }
             },
         });
     };
 
-    const generatePDF = (facture: Facture) => {
-        setPreviewFacture(null); // Fermer la prévisualisation si ouverte
-        const input = document.getElementById(`facture-${facture.id}`);
-        if (input) {
-            html2canvas(input).then((canvas) => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
-                const pageHeight = 295;
-                const imgHeight = canvas.height * imgWidth / canvas.width;
-                let heightLeft = imgHeight;
-                let position = 0;
+    const generatePDF = async (facture: Facture) => {
+        try {
+            setPreviewFacture(null);
+            const input = document.getElementById(`facture-${facture.id}`);
+            if (!input) {
+                messageApi.error('Erreur: Élément de facture non trouvé');
+                return;
+            }
 
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+            // Attendre que le DOM soit complètement rendu
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
-                }
-
-                pdf.save(`facture-${facture.numero}.pdf`);
+            const canvas = await html2canvas(input, {
+                scale: 2, // Meilleure qualité
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
             });
+
+            const imgWidth = 210; // A4 width in mm
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+
+            pdf.save(`facture-${facture.numero}.pdf`);
+            messageApi.success('PDF généré avec succès');
+        } catch (error) {
+            console.error('Erreur lors de la génération du PDF:', error);
+            messageApi.error('Erreur lors de la génération du PDF');
         }
-      };
+    };
+
+    const handleEdit = (record: Facture) => {
+        setCurrentFacture(record);
+        // Préremplir le formulaire avec les valeurs existantes
+        form.setFieldsValue({
+            numero: record.numero,
+            client: {
+                nom: record.client.nom,
+                email: record.client.email,
+                adresse: record.client.adresse,
+                telephone: record.client.telephone,
+            },
+            articles: record.articles,
+            tva: record.tva,
+            remise: record.remise,
+            statut: record.statut,
+        });
+        setModalVisible(true);
+    };
 
     const columns = [
         {
@@ -213,10 +245,7 @@ export default function FacturesPage() {
                     />
                     <Button
                         icon={<EditOutlined />}
-                        onClick={() => {
-                            setCurrentFacture(record);
-                            setModalVisible(true);
-                        }}
+                        onClick={() => handleEdit(record)}
                         size="small"
                     />
                     <Button
@@ -316,221 +345,226 @@ export default function FacturesPage() {
     };
 
     return (
-        
-        <div className="p-4">
-
-            {contextHolder}
-
-            {/* En-tête de page */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h1 className="text-2xl font-bold text-gray-800">Gestion des Factures</h1>
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                        setCurrentFacture(null);
-                        setModalVisible(true);
-                    }}
-                >
-                    Nouvelle Facture
-                </Button>
-            </div>
-
-            {/* Tableau des factures */}
-            <div className="overflow-x-auto bg-white rounded-lg shadow">
-                <Table
-                    columns={columns}
-                    dataSource={factures}
-                    rowKey="id"
-                    loading={loading}
-                    pagination={{ pageSize: 10 }}
-                    scroll={{ x: true }}
-                />
-            </div>
-
-            {/* Modal pour ajouter/modifier une facture */}
-            <Modal
-                title={currentFacture ? "Modifier Facture" : "Nouvelle Facture"}
-                open={modalVisible}
-                onCancel={() => {
-                    setModalVisible(false);
-                    form.resetFields();
-                }}
-                footer={null}
-                width="90%"
-                style={{ maxWidth: 800 }}
-                destroyOnHidden
-            >
-                <Form
-                    form={form}
-                    layout="vertical"
-                    onFinish={handleSubmit}
-                    initialValues={{
-                        tva: 18,
-                        remise: 0,
-                        statut: 'impayée',
-                        articles: [{ id: '1', description: '', quantite: 1, prixUnitaire: 0 }]
-                    }}
-                >
-                    <Form.Item
-                        name="numero"
-                        label="Numéro de facture"
-                        rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+        <App>
+            <div className="p-6">
+                {contextHolder}
+                {modalContextHolder}
+                
+                {/* En-tête de page */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h1 className="text-2xl font-bold text-gray-800">Gestion des Factures</h1>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                            setCurrentFacture(null);
+                            form.resetFields(); // Réinitialiser le formulaire pour une nouvelle facture
+                            setModalVisible(true);
+                        }}
                     >
-                        <Input placeholder="FAC-2023-001" />
-                    </Form.Item>
+                        Nouvelle Facture
+                    </Button>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tableau des factures */}
+                <div className="overflow-x-auto bg-white rounded-lg shadow">
+                    <Table
+                        columns={columns}
+                        dataSource={factures}
+                        rowKey="id"
+                        loading={loading}
+                        pagination={{ pageSize: 10 }}
+                        scroll={{ x: true }}
+                    />
+                </div>
+
+                {/* Modal pour ajouter/modifier une facture */}
+                <Modal
+                    title={currentFacture ? "Modifier Facture" : "Nouvelle Facture"}
+                    open={modalVisible}
+                    onCancel={() => {
+                        setModalVisible(false);
+                        setCurrentFacture(null);
+                        form.resetFields();
+                    }}
+                    footer={null}
+                    width="90%"
+                    style={{ maxWidth: 800 }}
+                    destroyOnClose={true}
+                >
+                    <Form
+                        form={form}
+                        layout="vertical"
+                        onFinish={handleSubmit}
+                        initialValues={{
+                            tva: 18,
+                            remise: 0,
+                            statut: 'impayée',
+                            articles: [{ id: '1', description: '', quantite: 1, prixUnitaire: 0 }]
+                        }}
+                    >
                         <Form.Item
-                            name={['client', 'nom']}
-                            label="Nom du client"
+                            name="numero"
+                            label="Numéro de facture"
                             rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
                         >
-                            <Input placeholder="Nom complet" />
+                            <Input placeholder="FAC-2023-001" />
                         </Form.Item>
 
-                        <Form.Item
-                            name={['client', 'email']}
-                            label="Email"
-                            rules={[{ type: 'email', message: 'Email invalide' }]}
-                        >
-                            <Input placeholder="client@example.com" />
-                        </Form.Item>
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Form.Item
+                                name={['client', 'nom']}
+                                label="Nom du client"
+                                rules={[{ required: true, message: 'Ce champ est obligatoire' }]}
+                            >
+                                <Input placeholder="Nom complet" />
+                            </Form.Item>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Form.Item
-                            name={['client', 'adresse']}
-                            label="Adresse"
-                        >
-                            <Input placeholder="Adresse complète" />
-                        </Form.Item>
+                            <Form.Item
+                                name={['client', 'email']}
+                                label="Email"
+                                rules={[{ type: 'email', message: 'Email invalide' }]}
+                            >
+                                <Input placeholder="client@example.com" />
+                            </Form.Item>
+                        </div>
 
-                        <Form.Item
-                            name={['client', 'telephone']}
-                            label="Téléphone"
-                        >
-                            <Input placeholder="+225..." />
-                        </Form.Item>
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Form.Item
+                                name={['client', 'adresse']}
+                                label="Adresse"
+                            >
+                                <Input placeholder="Adresse complète" />
+                            </Form.Item>
 
-                    <Form.List name="articles">
-                        {(fields, { add, remove }) => (
-                            <>
-                                {fields.map(({ key, name, ...restField }) => (
-                                    <div key={key} className="flex gap-4 mb-4">
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, 'description']}
-                                            label="Description"
-                                            className="flex-1"
-                                            rules={[{ required: true, message: 'Description requise' }]}
-                                        >
-                                            <Input placeholder="Article/service" />
-                                        </Form.Item>
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, 'quantite']}
-                                            label="Quantité"
-                                            className="w-24"
-                                            rules={[{ required: true, message: 'Quantité requise' }]}
-                                        >
-                                            <InputNumber min={1} />
-                                        </Form.Item>
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, 'prixUnitaire']}
-                                            label="Prix unitaire"
-                                            className="w-32"
-                                            rules={[{ required: true, message: 'Prix requis' }]}
-                                        >
-                                            <InputNumber min={0} step={0.01} />
-                                        </Form.Item>
-                                        <Button
-                                            type="text"
-                                            danger
-                                            onClick={() => remove(name)}
-                                            className="self-end mb-7"
-                                        >
-                                            <DeleteOutlined />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button
-                                    type="dashed"
-                                    onClick={() => add()}
-                                    icon={<PlusOutlined />}
-                                    className="w-full mb-4"
-                                >
-                                    Ajouter un article
+                            <Form.Item
+                                name={['client', 'telephone']}
+                                label="Téléphone"
+                            >
+                                <Input placeholder="+225..." />
+                            </Form.Item>
+                        </div>
+
+                        <Form.List name="articles">
+                            {(fields, { add, remove }) => (
+                                <>
+                                    {fields.map(({ key, name, ...restField }) => (
+                                        <div key={key} className="flex gap-4 mb-4">
+                                            <Form.Item
+                                                {...restField}
+                                                name={[name, 'description']}
+                                                label="Description"
+                                                className="flex-1"
+                                                rules={[{ required: true, message: 'Description requise' }]}
+                                            >
+                                                <Input placeholder="Article/service" />
+                                            </Form.Item>
+                                            <Form.Item
+                                                {...restField}
+                                                name={[name, 'quantite']}
+                                                label="Quantité"
+                                                className="w-24"
+                                                rules={[{ required: true, message: 'Quantité requise' }]}
+                                            >
+                                                <InputNumber min={1} />
+                                            </Form.Item>
+                                            <Form.Item
+                                                {...restField}
+                                                name={[name, 'prixUnitaire']}
+                                                label="Prix unitaire"
+                                                className="w-32"
+                                                rules={[{ required: true, message: 'Prix requis' }]}
+                                            >
+                                                <InputNumber min={0} step={0.01} />
+                                            </Form.Item>
+                                            <Button
+                                                type="text"
+                                                danger
+                                                onClick={() => remove(name)}
+                                                className="self-end mb-7"
+                                            >
+                                                <DeleteOutlined />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    <Button
+                                        type="dashed"
+                                        onClick={() => add()}
+                                        icon={<PlusOutlined />}
+                                        className="w-full mb-4"
+                                    >
+                                        Ajouter un article
+                                    </Button>
+                                </>
+                            )}
+                        </Form.List>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Form.Item
+                                name="tva"
+                                label="TVA (%)"
+                            >
+                                <InputNumber min={0} max={100} />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="remise"
+                                label="Remise (%)"
+                            >
+                                <InputNumber min={0} max={100} />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="statut"
+                                label="Statut"
+                            >
+                                <Select>
+                                    <Option value="payée">Payée</Option>
+                                    <Option value="impayée">Impayée</Option>
+                                    <Option value="en_retard">En retard</Option>
+                                </Select>
+                            </Form.Item>
+                        </div>
+
+                        <Form.Item className="text-right">
+                            <Space>
+                                <Button onClick={() => setModalVisible(false)}>
+                                    Annuler
                                 </Button>
-                            </>
-                        )}
-                    </Form.List>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Form.Item
-                            name="tva"
-                            label="TVA (%)"
-                        >
-                            <InputNumber min={0} max={100} />
+                                <Button type="primary" htmlType="submit" loading={loading}>
+                                    {currentFacture ? 'Mettre à jour' : 'Créer'}
+                                </Button>
+                            </Space>
                         </Form.Item>
+                    </Form>
+                </Modal>
+                <Modal
+                    title={`Prévisualisation - Facture ${previewFacture?.numero}`}
+                    open={!!previewFacture}
+                    onCancel={() => setPreviewFacture(null)}
+                    footer={[
+                        <Button key="download" type="primary" icon={<DownloadOutlined />} onClick={() => previewFacture && generatePDF(previewFacture)}>
+                            Télécharger PDF
+                        </Button>,
+                        <Button key="close" onClick={() => setPreviewFacture(null)}>
+                            Fermer
+                        </Button>
+                    ]}
+                    width="90%"
+                    style={{ maxWidth: 1000 }}
+                >
+                    {previewFacture && <FactureTemplate facture={previewFacture} />}
+                </Modal>
 
-                        <Form.Item
-                            name="remise"
-                            label="Remise (%)"
-                        >
-                            <InputNumber min={0} max={100} />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="statut"
-                            label="Statut"
-                        >
-                            <Select>
-                                <Option value="payée">Payée</Option>
-                                <Option value="impayée">Impayée</Option>
-                                <Option value="en_retard">En retard</Option>
-                            </Select>
-                        </Form.Item>
-                    </div>
-
-                    <Form.Item className="text-right">
-                        <Space>
-                            <Button onClick={() => setModalVisible(false)}>
-                                Annuler
-                            </Button>
-                            <Button type="primary" htmlType="submit" loading={loading}>
-                                {currentFacture ? 'Mettre à jour' : 'Créer'}
-                            </Button>
-                        </Space>
-                    </Form.Item>
-                </Form>
-            </Modal>
-            <Modal
-                title={`Prévisualisation - Facture ${previewFacture?.numero}`}
-                open={!!previewFacture}
-                onCancel={() => setPreviewFacture(null)}
-                footer={[
-                    <Button key="download" type="primary" icon={<DownloadOutlined />} onClick={() => previewFacture && generatePDF(previewFacture)}>
-                        Télécharger PDF
-                    </Button>,
-                    <Button key="close" onClick={() => setPreviewFacture(null)}>
-                        Fermer
-                    </Button>
-                ]}
-                width="90%"
-                style={{ maxWidth: 1000 }}
-            >
-                {previewFacture && <FactureTemplate facture={previewFacture} />}
-            </Modal>
-
-            {/* Prévisualisation des factures */}
-            {factures.map(facture => (
-                <div key={facture.id} className="hidden">
-                    <FactureTemplate facture={facture} />
+                {/* Prévisualisation des factures (déplacé en haut pour un meilleur rendu) */}
+                <div style={{ position: 'absolute', left: '-9999px' }}>
+                    {factures.map(facture => (
+                        <div key={facture.id}>
+                            <FactureTemplate facture={facture} />
+                        </div>
+                    ))}
                 </div>
-            ))}
-        </div>
+            </div>
+        </App>
     );
 }

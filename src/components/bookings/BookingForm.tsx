@@ -1,5 +1,5 @@
 // BookingForm.tsx
-import { Form, Input, InputNumber, Select, Modal, Button, Space, message } from 'antd';
+import { Form, Input, InputNumber, Select, Modal, Button, Space, message, App } from 'antd';
 import { db } from '@/app/lib/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -30,8 +30,10 @@ export default function BookingForm({
     bookingData?: Booking | null
 }) {
     const [form] = Form.useForm();
-    const [loading, setLoading] = useState(false);
+    const [submitLoading, setSubmitLoading] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [messageApi, contextHolder] = message.useMessage();
+    const [modal, modalContextHolder] = Modal.useModal();
     const [typeProduit, setTypeProduit] = useState<string>('');
 
     useEffect(() => {
@@ -45,50 +47,54 @@ export default function BookingForm({
     }, [bookingData, form]);
 
     const handleSubmit = async (values: Booking) => {
-        setLoading(true);
+        setSubmitLoading(true);
         try {
             const dataToSave = {
                 ...values,
                 date: bookingData?.date || new Date(),
             };
 
-            if (bookingData?.id) {
-                await updateDoc(doc(db, 'bookings', bookingData.id), dataToSave);
-                messageApi.success('Booking mis à jour avec succès');
+            const isUpdate = Boolean(bookingData?.id);
+            const bookingId = bookingData?.id;
+
+            if (isUpdate && bookingId) {
+                await updateDoc(doc(db, 'bookings', bookingId), dataToSave);
             } else {
                 await addDoc(collection(db, 'bookings'), dataToSave);
-                messageApi.success('Booking créé avec succès');
             }
             onSuccess();
-            form.resetFields();
+            if (!isUpdate) {
+                form.resetFields();
+            }
         } catch (error) {
             console.error("Erreur lors de l'opération:", error);
-            messageApi.error(bookingData?.id
-                ? 'Erreur lors de la mise à jour'
-                : 'Erreur lors de la création');
+            const actionType = bookingData?.id ? 'la mise à jour' : 'la création';
+            messageApi.error(`Erreur lors de ${actionType}`);
         } finally {
-            setLoading(false);
+            setSubmitLoading(false);
         }
     };
 
     const handleDelete = async () => {
         if (!bookingData?.id) return;
 
-        const bookingId = bookingData.id;
-        Modal.confirm({
+        modal.confirm({
             title: 'Confirmer la suppression',
             content: 'Êtes-vous sûr de vouloir supprimer ce booking ?',
             okText: 'Supprimer',
             okType: 'danger',
             cancelText: 'Annuler',
             async onOk() {
+                setDeleteLoading(true);
                 try {
-                    await deleteDoc(doc(db, 'bookings', bookingId));
+                    await deleteDoc(doc(db, 'bookings', bookingData.id!));
                     messageApi.success('Booking supprimé avec succès');
                     onSuccess();
                 } catch (error) {
                     messageApi.error('Erreur lors de la suppression');
                     console.error(error);
+                } finally {
+                    setDeleteLoading(false);
                 }
             },
         });
@@ -107,8 +113,9 @@ export default function BookingForm({
     };
 
     return (
-        <>
+        <App>
             {contextHolder}
+            {modalContextHolder}
             <Form form={form} onFinish={handleSubmit} layout="vertical">
                 <Form.Item
                     name="numero"
@@ -221,7 +228,7 @@ export default function BookingForm({
                         <Button
                             type="primary"
                             htmlType="submit"
-                            loading={loading}
+                            loading={submitLoading}
                             icon={<EditOutlined />}
                         >
                             {bookingData?.id ? 'Mettre à jour' : 'Créer'}
@@ -231,7 +238,7 @@ export default function BookingForm({
                             <Button
                                 danger
                                 onClick={handleDelete}
-                                loading={loading}
+                                loading={deleteLoading}
                                 icon={<DeleteOutlined />}
                             >
                                 Supprimer
@@ -240,6 +247,6 @@ export default function BookingForm({
                     </Space>
                 </Form.Item>
             </Form>
-        </>
+        </App>
     );
 }
